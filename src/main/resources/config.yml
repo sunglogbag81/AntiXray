@@ -1,25 +1,33 @@
-# ─────────────────────────────────────────────
-#  XrayGuard Configuration
-# ─────────────────────────────────────────────
+# XrayGuard Configuration
 
-# Suspicion score thresholds
+# 의심 점수 임계값 (0~100)
 thresholds:
-  caution:  30    # yellow alert
-  alert:    60    # orange alert + evidence snapshot
-  critical: 80    # red alert + ore retrieval option
+  caution:  30   # 주의 단계
+  alert:    60   # 경보 단계 (증거 스냅샷 저장)
+  critical: 80   # 위험 단계
 
-# Detection engine settings
+# 감지 엔진 설정
 engine:
-  baseline_diamond_rate: 0.012   # expected natural diamond rate (1.2%)
-  min_blocks_to_analyze: 64      # minimum blocks before scoring
-  analysis_interval_minutes: 5   # how often to run analysis
-  auto_calibrate: true           # auto-update baseline from DB averages
-  calibration_min_players: 10    # minimum players needed for calibration
+  baseline_diamond_rate: 0.012      # 일반 플레이어 다이아 기준 비율 (1.2%)
+  min_blocks_to_analyze: 64         # 분석 시작 최소 채굴 블록 수
+  analysis_interval_minutes: 5      # 주기 분석 간격 (분)
+  auto_calibrate: true              # 서버 통계 기반 자동 보정
+  calibration_min_players: 10       # 자동 보정에 필요한 최소 플레이어 수
+  optimal_diamond_y: -58            # 다이아 최적 Y 레벨
 
-# Y-level optimal for diamonds (1.21: -58)
-  optimal_diamond_y: -58
+# 안리멀 알림 설정
+notifications:
+  console: true    # 콘솔 로그 출력
+  ingame: true     # 게임 내 OP/권한자 알림
 
-# Ores to track
+# 가중치 설정 (합계 1.0)
+weights:
+  ore_rate:  0.40
+  linearity: 0.20
+  y_level:   0.20
+  spacing:   0.20
+
+# 감지할 광물 목록
 tracked_ores:
   - DIAMOND_ORE
   - DEEPSLATE_DIAMOND_ORE
@@ -28,27 +36,10 @@ tracked_ores:
   - ANCIENT_DEBRIS
   - GOLD_ORE
   - DEEPSLATE_GOLD_ORE
-  - IRON_ORE
-  - DEEPSLATE_IRON_ORE
 
-# Notification settings
-notifications:
-  console: true
-  ingame: true
-  discord_enabled: false
-  discord_webhook: ""
-  discord_mention_role: ""     # leave empty for no mention
-
-# Worlds to EXCLUDE from detection (e.g. creative, minigame worlds)
+# 감지 제외 세계 (예: 프리뱌드, 이벤트 세계)
 excluded_worlds:
-  - "world_the_end"
+  - world_freebuild
 
-# Players permanently excluded from detection
+# 괐 제외 플레이어 (소문자 니임)
 whitelist: []
-
-# Scoring weights (must sum to 1.0)
-weights:
-  ore_rate:   0.40
-  linearity:  0.20
-  y_level:    0.20
-  spacing:    0.20

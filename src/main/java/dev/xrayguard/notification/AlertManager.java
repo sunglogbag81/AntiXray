@@ -20,17 +20,14 @@ import java.util.stream.Collectors;
 public class AlertManager {
 
     private final XrayGuardPlugin plugin;
-    private final DiscordWebhook discord;
 
     public AlertManager(XrayGuardPlugin plugin) {
-        this.plugin  = plugin;
-        PluginConfig cfg = plugin.getPluginConfig();
-        this.discord = new DiscordWebhook(cfg.getDiscordWebhook(), cfg.getDiscordMentionRole());
+        this.plugin = plugin;
     }
 
     public void evaluate(MiningSession session, ScoreResult result) {
-        PluginConfig cfg   = plugin.getPluginConfig();
-        int score          = result.totalScore();
+        PluginConfig cfg = plugin.getPluginConfig();
+        int score        = result.totalScore();
         String grade, emoji;
         NamedTextColor color;
 
@@ -59,7 +56,7 @@ public class AlertManager {
                 Component msg = Component.text("[XrayGuard] ", NamedTextColor.DARK_GRAY)
                         .append(Component.text(emoji + " ", NamedTextColor.WHITE))
                         .append(Component.text(name, fc, TextDecoration.BOLD))
-                        .append(Component.text(" - " + fg + " (점수: " + score + ")", fc));
+                        .append(Component.text(" - " + fg + " (\uc810\uc218: " + score + ")", fc));
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (p.hasPermission("xrayguard.notify")) p.sendMessage(msg);
                 }
@@ -67,15 +64,10 @@ public class AlertManager {
         }
 
         if (score >= cfg.getAlertThreshold()) saveEvidence(session, result);
-
-        if (cfg.isDiscordEnabled()) {
-            plugin.getServer().getScheduler().runTaskAsynchronously(plugin,
-                    () -> discord.sendAlert(name, grade, emoji, score, result));
-        }
     }
 
     private void saveEvidence(MiningSession session, ScoreResult result) {
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+        plugin.runAsync(() -> {
             try {
                 DatabaseManager db = plugin.getDatabaseManager();
                 List<int[]> coords = db.getRecentOreCoords(session.getPlayerUuid(), 50);
@@ -115,7 +107,7 @@ public class AlertManager {
     }
 
     public void persistScore(MiningSession session, ScoreResult result) {
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+        plugin.runAsync(() -> {
             try {
                 plugin.getDatabaseManager().upsertScore(new PlayerStats(
                         session.getPlayerUuid(), session.getPlayerName(),
