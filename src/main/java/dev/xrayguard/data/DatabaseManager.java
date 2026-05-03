@@ -17,13 +17,36 @@ public class DatabaseManager {
 
     public void init() throws SQLException {
         File dbFile = new File(plugin.getDataFolder(), "xrayguard.db");
-        String url  = "jdbc:sqlite:" + dbFile.getAbsolutePath();
+        String url  = "jdbc:sqlite:" + dbFile.getAbsolutePath()
+                    + "?busy_timeout=10000&journal_mode=WAL&synchronous=NORMAL&cache_size=-8000";
+
         try { Class.forName("org.sqlite.JDBC"); } catch (ClassNotFoundException e) {
             throw new SQLException("SQLite JDBC driver not found", e);
         }
-        connection = DriverManager.getConnection(url);
-        connection.createStatement().execute("PRAGMA journal_mode=WAL");
-        createTables();
+
+        // 재시도 로직: 서버 시작 시 다른 플러그인(GrimAC 등)이 SQLite를 잠시 점유할 수 있어서
+        SQLException lastEx = null;
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            try {
+                connection = DriverManager.getConnection(url);
+                connection.setAutoCommit(true);
+                try (Statement st = connection.createStatement()) {
+                    st.execute("PRAGMA busy_timeout = 10000");
+                    st.execute("PRAGMA journal_mode = WAL");
+                    st.execute("PRAGMA synchronous  = NORMAL");
+                    st.execute("PRAGMA cache_size   = -8000");
+                    st.execute("PRAGMA foreign_keys = ON");
+                }
+                createTables();
+                return; // 성공 시 즉시 반환
+            } catch (SQLException e) {
+                lastEx = e;
+                plugin.getLogger().warning("[XrayGuard] DB init attempt " + attempt + "/5 failed: " + e.getMessage());
+                if (connection != null) { try { connection.close(); } catch (SQLException ignored) {} }
+                try { Thread.sleep(500L * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            }
+        }
+        throw lastEx;
     }
 
     private void createTables() throws SQLException {
@@ -62,7 +85,7 @@ public class DatabaseManager {
                     ore_coords   TEXT,
                     inventory    TEXT
                 )""");
-            st.execute("CREATE INDEX IF NOT EXISTS idx_mining_uuid ON mining_records(player_uuid)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_mining_uuid   ON mining_records(player_uuid)");
             st.execute("CREATE INDEX IF NOT EXISTS idx_evidence_uuid ON evidence_snapshots(player_uuid)");
         }
     }
