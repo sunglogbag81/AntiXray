@@ -1,0 +1,26 @@
+name: XrayGuard
+version: '1.0.0'
+main: dev.xrayguard.XrayGuardPlugin
+api-version: '1.21'
+authors: [ XrayGuard ]
+description: Advanced X-ray detection plugin using ore ratio analysis
+
+commands:
+  xg:
+    description: XrayGuard main command
+    usage: /xg <status|top|evidence|reset|whitelist|reload|debug> [player]
+    permission: xrayguard.check
+
+permissions:
+  xrayguard.bypass:
+    description: Bypass xray detection
+    default: op
+  xrayguard.check:
+    description: Check player suspicion scores
+    default: op
+  xrayguard.notify:
+    description: Receive in-game alerts
+    default: op
+  xrayguard.admin:
+    description: Full admin access (reset, evidence, whitelist, reload)
+    default: op

@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────
+#  XrayGuard Configuration
+# ─────────────────────────────────────────────
+
+# Suspicion score thresholds
+thresholds:
+  caution:  30    # yellow alert
+  alert:    60    # orange alert + evidence snapshot
+  critical: 80    # red alert + ore retrieval option
+
+# Detection engine settings
+engine:
+  baseline_diamond_rate: 0.012   # expected natural diamond rate (1.2%)
+  min_blocks_to_analyze: 64      # minimum blocks before scoring
+  analysis_interval_minutes: 5   # how often to run analysis
+  auto_calibrate: true           # auto-update baseline from DB averages
+  calibration_min_players: 10    # minimum players needed for calibration
+
+# Y-level optimal for diamonds (1.21: -58)
+  optimal_diamond_y: -58
+
+# Ores to track
+tracked_ores:
+  - DIAMOND_ORE
+  - DEEPSLATE_DIAMOND_ORE
+  - EMERALD_ORE
+  - DEEPSLATE_EMERALD_ORE
+  - ANCIENT_DEBRIS
+  - GOLD_ORE
+  - DEEPSLATE_GOLD_ORE
+  - IRON_ORE
+  - DEEPSLATE_IRON_ORE
+
+# Notification settings
+notifications:
+  console: true
+  ingame: true
+  discord_enabled: false
+  discord_webhook: ""
+  discord_mention_role: ""     # leave empty for no mention
+
+# Worlds to EXCLUDE from detection (e.g. creative, minigame worlds)
+excluded_worlds:
+  - "world_the_end"
+
+# Players permanently excluded from detection
+whitelist: []
+
+# Scoring weights (must sum to 1.0)
+weights:
+  ore_rate:   0.40
+  linearity:  0.20
+  y_level:    0.20
+  spacing:    0.20
