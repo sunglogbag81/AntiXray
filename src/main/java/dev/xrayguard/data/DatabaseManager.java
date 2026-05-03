@@ -24,7 +24,6 @@ public class DatabaseManager {
             throw new SQLException("SQLite JDBC driver not found", e);
         }
 
-        // 재시도 로직: 서버 시작 시 다른 플러그인(GrimAC 등)이 SQLite를 잠시 점유할 수 있어서
         SQLException lastEx = null;
         for (int attempt = 1; attempt <= 5; attempt++) {
             try {
@@ -38,7 +37,7 @@ public class DatabaseManager {
                     st.execute("PRAGMA foreign_keys = ON");
                 }
                 createTables();
-                return; // 성공 시 즉시 반환
+                return;
             } catch (SQLException e) {
                 lastEx = e;
                 plugin.getLogger().warning("[XrayGuard] DB init attempt " + attempt + "/5 failed: " + e.getMessage());
@@ -124,20 +123,52 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * player_stats 에 데이터가 있으면 그대로 반환.
+     * 없으면 mining_records 에서 실시간 집계해서 반환 (suspicion_score = -1 로 "미분석" 표시).
+     */
     public synchronized Optional<PlayerStats> getScore(UUID uuid) throws SQLException {
+        // 1) player_stats 우선 조회
         String sql = "SELECT * FROM player_stats WHERE player_uuid=?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, uuid.toString());
             ResultSet rs = ps.executeQuery();
-            if (!rs.next()) return Optional.empty();
+            if (rs.next()) {
+                return Optional.of(new PlayerStats(
+                        UUID.fromString(rs.getString("player_uuid")),
+                        rs.getString("player_name"),
+                        rs.getInt("total_blocks"),
+                        rs.getInt("total_ores"),
+                        rs.getDouble("ore_rate"),
+                        rs.getInt("suspicion_score"),
+                        rs.getLong("last_updated")));
+            }
+        }
+
+        // 2) player_stats 없으면 mining_records 에서 실시간 집계
+        String liveSql = """
+            SELECT COUNT(*) AS total_blocks,
+                   SUM(is_ore) AS total_ores,
+                   MAX(timestamp) AS last_ts
+            FROM mining_records
+            WHERE player_uuid = ?
+            """;
+        try (PreparedStatement ps = connection.prepareStatement(liveSql)) {
+            ps.setString(1, uuid.toString());
+            ResultSet rs = ps.executeQuery();
+            if (!rs.next() || rs.getInt("total_blocks") == 0) return Optional.empty();
+
+            int totalBlocks = rs.getInt("total_blocks");
+            int totalOres   = rs.getInt("total_ores");
+            long lastTs     = rs.getLong("last_ts");
+            double oreRate  = totalBlocks > 0 ? (double) totalOres / totalBlocks : 0;
+
+            // 이름은 mining_records 에 없으므로 uuid 문자열 앞 8자리로 대체
+            String fallbackName = uuid.toString().substring(0, 8) + "...";
+
+            // suspicion_score = -1 → 아직 분석 전임을 커맨드에서 표시
             return Optional.of(new PlayerStats(
-                    UUID.fromString(rs.getString("player_uuid")),
-                    rs.getString("player_name"),
-                    rs.getInt("total_blocks"),
-                    rs.getInt("total_ores"),
-                    rs.getDouble("ore_rate"),
-                    rs.getInt("suspicion_score"),
-                    rs.getLong("last_updated")));
+                    uuid, fallbackName, totalBlocks, totalOres, oreRate, -1, lastTs));
         }
     }
 
