@@ -50,35 +50,55 @@ public class XGCommand implements CommandExecutor, TabCompleter {
                 UUID uuid = resolveUuid(name);
                 if (uuid == null) { sender.sendMessage(c("플레이어를 찾을 수 없습니다: " + name, NamedTextColor.RED)); return; }
 
-                Optional<PlayerStats> opt = plugin.getDatabaseManager().getScore(uuid);
-                if (opt.isEmpty()) { sender.sendMessage(c(name + "의 채굴 데이터가 없습니다.", NamedTextColor.YELLOW)); return; }
+                // 인메모리 세션 우선 — 온라인이면 항상 최신 데이터
+                MiningSession session = plugin.getSessionManager().get(uuid);
+                SuspicionEngine.ScoreResult liveResult = (session != null)
+                        ? plugin.getSuspicionEngine().compute(session) : null;
 
-                PlayerStats s = opt.get();
-                // suspicionScore == -1 이면 아직 주기 분석 전 (mining_records 실시간 집계)
-                boolean pending = (s.suspicionScore() == -1);
+                // DB에서 이전 분석 점수 조회 (오프라인 플레이어 대응)
+                Optional<PlayerStats> dbOpt = plugin.getDatabaseManager().getScore(uuid);
 
-                // 이름: mining_records fallback 이면 실제 이름으로 교체
-                String displayName = s.playerName().endsWith("...") ? name : s.playerName();
+                // 표시할 이름 결정
+                String displayName = (session != null) ? session.getPlayerName()
+                        : dbOpt.map(PlayerStats::playerName).orElse(name);
 
                 sender.sendMessage(header("XrayGuard | " + displayName));
-                if (pending) {
-                    sender.sendMessage(c("  ⏳ 점수: 분석 대기 중 (주기 분석 전)", NamedTextColor.YELLOW));
-                } else {
-                    sender.sendMessage(row("의심 점수", gradeEmoji(s.suspicionScore()) + s.suspicionScore() + " / 100"));
-                }
-                sender.sendMessage(row("채굴 블록", s.totalBlocks() + "개"));
-                sender.sendMessage(row("광물 블록", s.totalOres() + "개"));
-                sender.sendMessage(row("광물 비율", String.format("%.2f%%", s.oreRate() * 100)));
-                sender.sendMessage(row("마지막 채굴", SDF.format(new Date(s.lastUpdated()))));
 
-                // 인메모리 세션에서 실시간 점수도 병기
-                MiningSession session = plugin.getSessionManager().get(uuid);
                 if (session != null) {
-                    SuspicionEngine.ScoreResult live = plugin.getSuspicionEngine().compute(session);
-                    if (live != null) {
-                        sender.sendMessage(row("실시간 점수", gradeEmoji(live.totalScore()) + live.totalScore() + " / 100 (인메모리)"));
+                    // ── 온라인: 인메모리 세션 기준으로 전부 표시 ──
+                    int totalBlocks = session.getTotalBlocks();
+                    int totalOres   = session.getTotalOres();
+                    double oreRate  = session.getOreRate();
+
+                    if (liveResult != null) {
+                        sender.sendMessage(row("의심 점수", gradeEmoji(liveResult.totalScore()) + liveResult.totalScore() + " / 100"));
+                    } else {
+                        sender.sendMessage(c("  ⏳ 점수: 분석 대기 중 (최소 " + plugin.getPluginConfig().getMinBlocksToAnalyze() + "블록 필요)", NamedTextColor.YELLOW));
                     }
+                    sender.sendMessage(row("채굴 블록", totalBlocks + "개"));
+                    sender.sendMessage(row("광물 블록", totalOres   + "개"));
+                    sender.sendMessage(row("광물 비율", String.format("%.2f%%", oreRate * 100)));
+                    sender.sendMessage(c("  ✅ 실시간 데이터 (인메모리)", NamedTextColor.DARK_GRAY));
+
+                } else if (dbOpt.isPresent()) {
+                    // ── 오프라인: DB 마지막 분석 데이터 표시 ──
+                    PlayerStats s = dbOpt.get();
+                    boolean pending = (s.suspicionScore() == -1);
+                    if (pending) {
+                        sender.sendMessage(c("  ⏳ 점수: 분석 대기 중 (주기 분석 전)", NamedTextColor.YELLOW));
+                    } else {
+                        sender.sendMessage(row("의심 점수", gradeEmoji(s.suspicionScore()) + s.suspicionScore() + " / 100"));
+                    }
+                    sender.sendMessage(row("채굴 블록", s.totalBlocks() + "개"));
+                    sender.sendMessage(row("광물 블록", s.totalOres()   + "개"));
+                    sender.sendMessage(row("광물 비율", String.format("%.2f%%", s.oreRate() * 100)));
+                    sender.sendMessage(row("마지막 분석", SDF.format(new Date(s.lastUpdated()))));
+                    sender.sendMessage(c("  📦 DB 캐시 (오프라인)", NamedTextColor.DARK_GRAY));
+
+                } else {
+                    sender.sendMessage(c(name + "의 채굴 데이터가 없습니다.", NamedTextColor.YELLOW));
                 }
+
             } catch (SQLException e) { sender.sendMessage(c("DB 오류: " + e.getMessage(), NamedTextColor.RED)); }
         });
     }
